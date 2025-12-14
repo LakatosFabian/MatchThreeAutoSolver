@@ -2,13 +2,12 @@ import random
 import copy
 import csv
 
-# ===================== CONFIG =====================
 ROWS = 11
 COLS = 11
 COLORS = [1, 2, 3, 4]
 
-GAMES = 10
-TARGET_SCORE = 1000
+GAMES = 100
+TARGET_SCORE = 10000
 
 SCORES = {
     "LINE3": 5,
@@ -18,32 +17,28 @@ SCORES = {
     "T": 30
 }
 
-# ===================== PREDEFINED BOARD =====================
 PREDEFINED_BOARD = [
     [1,2,3,4,1,2,3,4,1,2,3],
     [2,1,4,3,2,1,4,3,2,1,4],
-    [3,4,1,2,3,4,1,2,3,4,1],
+    [3,2,1,2,2,4,1,2,3,4,1],
     [4,3,2,1,4,3,2,1,4,3,2],
     [1,2,3,4,1,2,3,4,1,2,3],
     [2,1,4,3,2,1,4,3,2,1,4],
-    [3,4,1,2,3,4,1,2,3,4,1],
-    [4,3,2,1,4,3,2,1,4,3,2],
+    [3,4,1,2,3,4,4,2,3,4,1],
+    [4,3,2,1,4,4,2,4,4,3,2],
     [1,2,3,4,1,2,3,4,1,2,3],
     [2,1,4,3,2,1,4,3,2,1,4],
-    [3,4,1,2,3,4,1,2,3,4,1]
+    [3,4,1,2,3,2,1,2,3,4,1]
 ]
 
-# ===================== UTIL =====================
 def in_bounds(r, c):
     return 0 <= r < ROWS and 0 <= c < COLS
 
-# ===================== INIT =====================
 def init_board(predefined=None):
     if predefined is not None:
         return copy.deepcopy(predefined)
     return [[random.choice(COLORS) for _ in range(COLS)] for _ in range(ROWS)]
 
-# ===================== FORMATION DETECTION =====================
 def find_formations(board):
     used = set()
     removals = set()
@@ -57,7 +52,6 @@ def find_formations(board):
             removals.update(s)
             score += pts
 
-    # ---- lines ----
     for r in range(ROWS):
         c = 0
         while c < COLS:
@@ -92,7 +86,6 @@ def find_formations(board):
             if v == 0:
                 r += 1
 
-    # ---- T ----
     for r in range(ROWS):
         for c in range(COLS):
             v = board[r][c]
@@ -102,7 +95,6 @@ def find_formations(board):
             if all(in_bounds(x,y) and board[x][y]==v for x,y in cells):
                 take(cells, SCORES["T"])
 
-    # ---- L ----
     L_SHAPES = [
         [(0,0),(1,0),(2,0),(2,1),(2,2)],
         [(0,0),(0,1),(0,2),(1,0),(2,0)],
@@ -122,21 +114,19 @@ def find_formations(board):
 
     return removals, score
 
-# ===================== GRAVITY & REFILL =====================
 def apply_gravity(board):
     for c in range(COLS):
         stack = [board[r][c] for r in range(ROWS) if board[r][c] != 0]
         for r in range(ROWS-1, -1, -1):
             board[r][c] = stack.pop() if stack else 0
 
-def refill(board):
+def refill(board, use_random=True):
     for r in range(ROWS):
         for c in range(COLS):
             if board[r][c] == 0:
-                board[r][c] = random.choice(COLORS)
+                board[r][c] = random.choice(COLORS) if use_random else 0
 
-# ===================== CASCADES =====================
-def resolve(board):
+def resolve(board, use_random=True):
     total = 0
     cascades = 0
     while True:
@@ -146,12 +136,11 @@ def resolve(board):
         for r,c in rem:
             board[r][c] = 0
         apply_gravity(board)
-        refill(board)
+        refill(board, use_random)
         total += pts
         cascades += 1
     return total, cascades
 
-# ===================== SWAPS =====================
 def best_swap(board):
     best = 0
     best_board = None
@@ -169,10 +158,9 @@ def best_swap(board):
                     best_board = b
     return best, best_board
 
-# ===================== GAME =====================
-def play_game(predefined=None):
+def play_game(predefined=None, use_random=True):
     board = init_board(predefined)
-    points, cascades = resolve(board)
+    points, cascades = resolve(board, use_random)
 
     swaps = 0
     moves_to_10000 = None
@@ -199,27 +187,27 @@ def play_game(predefined=None):
         "moves_to_10000": moves_to_10000 or ""
     }
 
-# ===================== RUN =====================
 def run_simulation(use_predefined):
     results = []
 
     for i in range(GAMES):
-        res = play_game(PREDEFINED_BOARD if use_predefined else None)
-        res["game_id"] = i
+        res = play_game(PREDEFINED_BOARD if use_predefined else None,
+                        use_random=not use_predefined)
+        res["game_id"] = i+1
         results.append(res)
 
-        print(f"Game {i}: points={res['points']}, "
-              f"reached_target={res['reached_target']}, "
-              f"reason={res['stopping_reason']}")
+        print(f"Jocul {i+1}: puncte={res['points']}, "
+              f"tinta atinsa={res['reached_target']}, "
+              f"cauza={res['stopping_reason']}")
 
     avg_points = sum(r["points"] for r in results) / GAMES
     avg_swaps = sum(r["swaps"] for r in results) / GAMES
 
-    print("\n=== AVERAGES ===")
-    print(f"avg_points = {avg_points:.2f}")
-    print(f"avg_swaps  = {avg_swaps:.2f}")
+    print("\n\tStatistici finale")
+    print(f"Media aritmetica a punctelor = {avg_points:.2f}")
+    print(f"Media aritmetica a swap-urilor  = {avg_swaps:.2f}")
 
-    with open("results/rezultate.csv", "w", newline="") as f:
+    with open("../results/rezultate.csv", "w", newline="") as f:
         writer = csv.DictWriter(
             f,
             fieldnames=[
@@ -230,7 +218,7 @@ def run_simulation(use_predefined):
         writer.writeheader()
         writer.writerows(results)
 
-# ===================== ENTRY =====================
+
 if __name__ == "__main__":
-    choice = input("Use predefined board? (y/n): ").strip().lower()
-    run_simulation(choice == "y")
+    choice = input("Folositi tabla predefinita? (da/nu): ").strip().lower()
+    run_simulation(choice == "da")
